@@ -74,7 +74,7 @@ if [ -e '/etc/cron.d/ddos' ]; then
 fi
 if [ -e '/etc/crontab' ]; then
     echo -n "Deleting cron job..."
-    sed -i '' '/ddos/d' /etc/crontab
+    sed -i '/ddos/d' /etc/crontab
     echo -n ".."
 fi
 echo " (done)"
