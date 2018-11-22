@@ -39,7 +39,8 @@ for dependency in $packages; do
     fi
 done
 
-if [[ $(which grepcidr) -ne 0 ]];then
+which grepcidr >/dev/null 2>&1
+if [[ $? -ne 0 ]];then
     echo 'grepcidr is not installed correctly, installing from source...'
     yum install gcc -y >/dev/null 2>&1
     wget -q http://www.pc-tools.net/files/unix/grepcidr-2.0.tar.gz
