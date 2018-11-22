@@ -47,8 +47,8 @@ ipfw, iptables, or Advanced Policy Firewall (APF).
 As root user execute the following commands:
 
 ```shell
-wget https://github.com/jgmdev/ddos-deflate/archive/master.zip
-unzip master.zip
+wget -O ddos-deflate.zip https://github.com/chenmin1992/ddos-deflate/archive/master.zip
+unzip ddos-deflate.zip
 cd ddos-deflate-master
 ./install.sh
 ```
