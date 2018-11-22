@@ -263,7 +263,7 @@ get_connections()
     # Find all connections
     if [ "$2" = "" ]; then
         if ! $SS_MISSING; then
-            ss -Hntu"$1" \
+            ss -ntu"$1" \
                 state $(echo "$CONN_STATES" | sed 's/:/ state /g') | \
                 # Fix possible ss bug
                 sed -E "s/(tcp|udp)/\\1 /g"
@@ -285,7 +285,7 @@ get_connections()
     else
         if ! $SS_MISSING; then
             # state unconnected used to also include udp services
-            ss -Hntu"$1" state listening state unconnected | \
+            ss -ntu"$1" state listening state unconnected | \
                 # Fix possible ss bug and convert *:### to [::]:###
                 sed -E "s/(tcp|udp)/\\1 /g; s/ *:([0-9]+) / [::]:\\1 /g"
         else
@@ -628,7 +628,7 @@ check_connections()
 # and applies a banning rule accordingly.
 check_connections_bw()
 {
-    if ! BANDWIDTH_CONTROL; then
+    if ! $BANDWIDTH_CONTROL; then
         return
     fi
 
@@ -775,7 +775,7 @@ undrop_rate_ip()
 # BANDWIDTH_DROP_PERIOD
 undrop_rate_list()
 {
-    if ! BANDWIDTH_CONTROL; then
+    if ! $BANDWIDTH_CONTROL; then
         return
     fi
 
@@ -1119,7 +1119,7 @@ detect_interfaces()
 
 start_bandwidth_control()
 {
-    if BANDWIDTH_CONTROL; then
+    if $BANDWIDTH_CONTROL; then
         detect_interfaces
 
         for interface in $BANDWIDTH_INTERFACES; do
@@ -1138,7 +1138,7 @@ start_bandwidth_control()
 
 stop_bandwidth_control()
 {
-    if BANDWIDTH_CONTROL; then
+    if $BANDWIDTH_CONTROL; then
         detect_interfaces
 
         for interface in $BANDWIDTH_INTERFACES; do

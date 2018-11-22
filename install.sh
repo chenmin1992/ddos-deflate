@@ -39,6 +39,15 @@ for dependency in $packages; do
     fi
 done
 
+if [ $(which grepcidr) -ne 0 ];then
+    echo 'grepcidr is not installed correctly, installing from source...'
+    yum install gcc -y >/dev/null 2>&1
+    wget -q http://www.pc-tools.net/files/unix/grepcidr-2.0.tar.gz
+    tar -xf grepcidr-2.0.tar.gz
+    cd  grepcidr-2.0
+    make && make PREFIX=/usr install
+fi
+
 if [ -d "$DESTDIR/usr/local/ddos" ]; then
     echo "Please un-install the previous version first"
     exit 0
