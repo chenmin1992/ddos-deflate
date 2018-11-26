@@ -49,8 +49,8 @@ if [ -d '/usr/local/ddos' ]; then
 fi
 echo " (done)"
 
-echo -n "Removing man page..."
 if [ -e '/usr/share/man/man1/ddos.1' ]; then
+    echo -n "Removing man page..."
     rm -f /usr/share/man/man1/ddos.1
     echo -n "."
 fi

@@ -22,6 +22,10 @@ else
     packages="$packages iptables"
 fi
 
+if [ $install_type -eq 3 ];then
+    echo "installing epel-release..."
+    yum install epel-release -y
+fi
 for dependency in $packages; do
     which $dependency >/dev/null 2>&1
     if [ $? -ne 0 ]; then
@@ -42,7 +46,18 @@ if [[ $? -ne 0 ]];then
     tar -xf grepcidr-2.0.tar.gz
     cd  grepcidr-2.0
     make && make PREFIX=/usr install
+    cd - >/dev/null 2>&1
 fi
+
+# which apf >/dev/null 2>&1
+# if [[ $? -ne 0 ]];then
+    # echo 'apf is not installed correctly, installing from source...'
+    # wget -q -O apf-current.tar.gz http://www.rfxnetworks.com/downloads/apf-current.tar.gz
+    # tar xf apf-current.tar.gz
+    # cd apf-*
+    # bash install.sh >/dev/null 2>&1 || echo 'apf installation failed.'
+    # cd - >/dev/null 2>&1
+# fi
 
 cd $(cd "$(dirname "$0")" && pwd)
 
@@ -94,8 +109,8 @@ echo " (done)"
 
 echo -n 'Creating ddos script: /usr/local/sbin/ddos...'
 mkdir -p "$DESTDIR/usr/local/sbin/"
-echo "#!/bin/sh" > "$DESTDIR/usr/local/sbin/ddos"
-echo "/usr/local/ddos/ddos.sh \$@" >> "$DESTDIR/usr/local/sbin/ddos"
+echo "#!/bin/bash
+/usr/local/ddos/ddos.sh \$@" > "$DESTDIR/usr/local/sbin/ddos"
 chmod 0755 "$DESTDIR/usr/local/sbin/ddos"
 echo " (done)"
 

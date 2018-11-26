@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 ##############################################################################
 # DDoS-Deflate Original Author: Zaf <zaf@vsnl.com>                           #
 ##############################################################################
@@ -986,7 +986,7 @@ start_daemon()
         touch "${BANS_BW_IP_LIST}"
     fi
 
-    nohup "$0" -l > /dev/null 2>&1 &
+    nohup "$0" -l &
 
     log_msg "daemon started"
 }
@@ -1016,6 +1016,7 @@ daemon_loop()
     su_required
 
     if [ "$(daemon_running)" = "1" ]; then
+        echo "ddos daemon is already running..."
         exit 0
     fi
 
