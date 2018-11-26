@@ -89,6 +89,7 @@ fi
 if [ ! -e "$DESTDIR/etc/ddos/ignore.ip.list" ]; then
     echo -n 'Adding: /etc/ddos/ignore.ip.list...'
     cp config/ignore.ip.list "$DESTDIR/etc/ddos/ignore.ip.list" > /dev/null 2>&1
+    netstat -tanpe | grep sshd: | awk '{print $5}' | awk -F: '{print $1}' | sort | uniq >> "$DESTDIR/etc/ddos/ignore.ip.list"
     echo " (done)"
 fi
 
