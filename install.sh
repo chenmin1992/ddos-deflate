@@ -24,7 +24,7 @@ fi
 
 if [ $install_type -eq 3 ];then
     echo "installing epel-release..."
-    yum install epel-release -y
+    yum install epel-release -y >/dev/null 2>&1
 fi
 for dependency in $packages; do
     which $dependency >/dev/null 2>&1
