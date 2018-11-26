@@ -25,16 +25,11 @@ fi
 for dependency in $packages; do
     is_installed=`which $dependency`
     if [ "$is_installed" = "" ]; then
-        echo "error: Required dependency '$dependency' is missing."
         if [ "$install_type" = '0' ]; then
+            echo "can not find out package install tool, exiting..."
             exit 1
-        else
-            echo -n "Autoinstall dependencies by '$install_command'? (n to exit) "
         fi
-        read install_sign
-        if [ "$install_sign" = 'N' -o "$install_sign" = 'n' ]; then
-           exit 1
-        fi
+        echo "error: Required dependency '$dependency' is missing."
         eval "$install_command install -y $(grep $dependency config/dependencies.list | awk '{print $'$install_type'}')"
     fi
 done
