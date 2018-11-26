@@ -986,7 +986,7 @@ start_daemon()
         touch "${BANS_BW_IP_LIST}"
     fi
 
-    nohup "$0" -l &
+    nohup "$0" -l >/dev/null 2>&1 &
 
     log_msg "daemon started"
 }
