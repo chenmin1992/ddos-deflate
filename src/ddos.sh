@@ -81,6 +81,7 @@ showhelp()
     echo '-u      | --unban: Unbans a given ip address.'
     echo '-d      | --start: Initialize a daemon to monitor connections'
     echo '-s      | --stop: Stop the daemon'
+    echo '-r      | --restart: Restart the daemon'
     echo '-t      | --status: Show status of daemon and pid if currently running'
     echo '-v[4|6] | --view [4|6]: Display active connections to the server'
     echo '-y[4|6] | --view-port [4|6]: Display active connections to the server including the port'
@@ -1245,6 +1246,11 @@ while [ "$1" ]; do
             ;;
         '--stop' | '-s' )
             stop_daemon
+            exit
+            ;;
+        '--restart' | '-r' )
+            stop_daemon
+            start_daemon
             exit
             ;;
         '--status' | '-t' )
