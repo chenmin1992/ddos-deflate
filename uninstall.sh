@@ -37,8 +37,8 @@ if [ -e '/usr/lib/systemd/system/ddos.service' ]; then
     echo " (done)"
 fi
 
-echo -n "Deleting script files..."
 if [ -e '/usr/local/sbin/ddos' ]; then
+    echo -n "Deleting script files..."
     rm -f /usr/local/sbin/ddos
     echo -n "."
 fi

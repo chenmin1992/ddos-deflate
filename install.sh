@@ -23,8 +23,8 @@ else
 fi
 
 for dependency in $packages; do
-    is_installed=`which $dependency`
-    if [ "$is_installed" = "" ]; then
+    which $dependency >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
         if [ "$install_type" = '0' ]; then
             echo "can not find out package install tool, exiting..."
             exit 1
@@ -43,6 +43,8 @@ if [[ $? -ne 0 ]];then
     cd  grepcidr-2.0
     make && make PREFIX=/usr install
 fi
+
+cd $(cd "$(dirname "$0")" && pwd)
 
 if [ -d "$DESTDIR/usr/local/ddos" ]; then
     echo "Please un-install the previous version first"
