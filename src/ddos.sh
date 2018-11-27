@@ -52,18 +52,19 @@ load_conf()
 {
     CONF="${CONF_PATH}ddos.conf"
     if [ -f "$CONF" ] && [ -n "$CONF" ]; then
-        . $CONF
+        source $CONF
     else
         ddos_head
-        echo "\$CONF not found."
+        echo "$CONF not found."
         exit 1
     fi
 }
 
 ddos_head()
 {
-    echo "DDoS-Deflate version 1.3"
+    echo "DDoS-Deflate version 1.4"
     echo "Copyright (C) 2005, Zaf <zaf@vsnl.com>"
+    echo "         modified by klutz QQ781022537"
     echo
 }
 
