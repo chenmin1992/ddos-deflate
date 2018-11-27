@@ -148,6 +148,10 @@ When running the script as a cronjob no restarting is required.
 
    Stop the daemon.
 
+**-r | --restart:**
+
+   Restart the daemon.
+
 **-t | --status:**
 
    Show status of daemon and pid if currently running.

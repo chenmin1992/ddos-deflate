@@ -40,12 +40,12 @@ done
 
 which grepcidr >/dev/null 2>&1
 if [[ $? -ne 0 ]];then
-    echo 'grepcidr is not installed correctly, installing from source...'
-    yum install gcc -y >/dev/null 2>&1
+    echo -n 'grepcidr is not installed correctly, installing from source...'
+    eval "$install_command install gcc -y >/dev/null 2>&1"
     wget -q http://www.pc-tools.net/files/unix/grepcidr-2.0.tar.gz
     tar -xf grepcidr-2.0.tar.gz
-    cd  grepcidr-2.0
-    make && make PREFIX=/usr install
+    cd grepcidr*
+    make >/dev/null 2>&1 && make PREFIX=/usr install >/dev/null 2>&1 && echo '(done)' || (echo;echo 'installation for grepcidr occured errors, please install it manually';exit 1;)
     cd - >/dev/null 2>&1
 fi
 
@@ -194,10 +194,10 @@ elif [ -d /etc/cron.d ] || [ -f /etc/crontab ]; then
 fi
 
 echo; echo 'Installation has completed!'
-echo 'Config files are located at /etc/ddos/'
+echo "Config files are located at $DESTDIR/etc/ddos/"
 echo
 echo 'Please send in your comments and/or suggestions to:'
-echo 'https://github.com/jgmdev/ddos-deflate/issues'
+echo 'https://github.com/chenmin1992/ddos-deflate/issues'
 echo
 
 exit 0
