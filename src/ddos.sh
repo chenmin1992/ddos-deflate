@@ -1031,6 +1031,8 @@ daemon_loop()
 
     detect_firewall
 
+    restore_firewall
+
     start_bandwidth_control
 
     # run unban and undrop lists after 2 minutes of initialization
@@ -1099,6 +1101,14 @@ detect_firewall()
             exit 1
         fi
     fi
+}
+
+restore_firewall()
+{
+    while read line;do
+        ip=$(echo "$line" | cut -d" " -f2)
+        ban_ip $ip
+    done < $BANS_IP_LIST
 }
 
 # Detects the available network interfaces with internet connection and
