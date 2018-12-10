@@ -736,6 +736,30 @@ check_connections_bw()
     rm -f "$TMP_PREFIX".*
 }
 
+check_http_access_logs()
+{
+    if [ "$ACCESS_LOG_DIR" = "" ] || [ ! -d $ACCESS_LOG_DIR ]; then
+        return
+    fi
+
+    su_required
+
+    whitelist=$(ignore_list "1")
+
+    for f in `ls $ACCESS_LOG_DIR$ACCESS_LOG_FILTER`
+    do
+        ips=$(tail -500 $f | grep -v ' 200 ' | awk '{print $1}' | grepcidr -v -e "$SERVER_IP_LIST $whitelist ::1" | sort | uniq -c | sort -nr | awk "{ if (\$1 >= $NO_OF_CONNECTIONS) print; }")
+        for cons ip in $ips
+        do
+            current_time=$(date +"%s")
+            echo "$((current_time+BAN_PERIOD)) $ip $cons" >> "${BANS_IP_LIST}"
+            timeout -k 60 -s 9 60 tcpkill -9 host "$ip" > /dev/null 2>&1 &
+            ban_ip $ip
+            log_msg "banned $ip with $cons requests from $f for ban period $BAN_PERIOD"
+        done
+    done
+}
+
 # Drops the transfer rate for a given ip.
 # param1 The ip address ratelimit.
 drop_rate_ip()
@@ -1042,6 +1066,7 @@ daemon_loop()
     while true; do
         check_connections
         check_connections_bw
+        check_http_access_logs
 
         # unban or undrop expired ip's every 1 minute
         current_loop_time=$(date +"%s")
@@ -1196,20 +1221,22 @@ IPT6="/sbin/ip6tables"
 TC="/sbin/tc"
 FREQ=1
 DAEMON_FREQ=5
-NO_OF_CONNECTIONS=150
+NO_OF_CONNECTIONS=20
 ENABLE_PORTS=false
-PORT_CONNECTIONS="80:150:600 443:150:600"
+PORT_CONNECTIONS="80:20:86400 443:20:86400"
+BAN_PERIOD=86400
 FIREWALL="auto"
 EMAIL_TO="root"
-BAN_PERIOD=600
 CONN_STATES="connected"
 CONN_STATES_NS="ESTABLISHED|SYN_SENT|SYN_RECV|FIN_WAIT1|FIN_WAIT2|TIME_WAIT|CLOSE_WAIT|LAST_ACK|CLOSING"
 ONLY_INCOMING=false
 BANDWIDTH_CONTROL=false
 BANDWIDTH_CONTROL_LIMIT="1512kbit"
 BANDWIDTH_DROP_RATE="256kbit"
-BANDWIDTH_DROP_PERIOD=600
+BANDWIDTH_DROP_PERIOD=86400
 BANDWIDTH_ONLY_INCOMING=true
+ACCESS_LOG_DIR='/home/wwwlogs/'
+ACCESS_LOG_FILTER='*.log'
 
 # Load custom settings
 load_conf

@@ -6,6 +6,7 @@ echo "Uninstalling DOS-Deflate"
 
 echo;
 echo "killing all ddos process..."
+service ddos stop > /dev/null 2>&1
 kill -9 `ps -elf | grep ddos.sh | grep -v grep | awk '{print $4}'` > /dev/null 2>&1
 
 if [ -e '/etc/init.d/ddos' ]; then 
