@@ -42,8 +42,8 @@ which grepcidr >/dev/null 2>&1
 if [[ $? -ne 0 ]];then
     echo -n 'grepcidr is not installed correctly, installing from source...'
     eval "$install_command install gcc -y >/dev/null 2>&1"
-    wget -q http://www.pc-tools.net/files/unix/grepcidr-2.0.tar.gz
-    tar -xf grepcidr-2.0.tar.gz
+    # wget -q http://www.pc-tools.net/files/unix/grepcidr-2.0.tar.gz
+    # tar -xf grepcidr-2.0.tar.gz
     cd grepcidr*
     make >/dev/null 2>&1 && make PREFIX=/usr install >/dev/null 2>&1 && echo '(done)' || (echo;echo 'installation for grepcidr occured errors, please install it manually';exit 1;)
     cd - >/dev/null 2>&1
