@@ -1245,7 +1245,6 @@ while [ "$1" ]; do
             su_required
             shift
             detect_firewall
-
             if ! unban_ip "$1"; then
                 echo "Please specify a valid ip address."
             fi
