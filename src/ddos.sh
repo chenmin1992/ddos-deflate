@@ -533,7 +533,6 @@ check_connections()
 {
     su_required
 
-    TMP_PREFIX='/tmp/ddos'
     TMP_FILE="mktemp $TMP_PREFIX.XXXXXXXX"
     BAD_IP_LIST=$($TMP_FILE)
 
@@ -636,7 +635,6 @@ check_connections_bw()
 
     whitelist=$(ignore_list "1")
 
-    TMP_PREFIX='/tmp/ddos'
     TMP_FILE="mktemp $TMP_PREFIX.XXXXXXXX"
 
     BANNED_IP_MAIL=$($TMP_FILE)
@@ -744,20 +742,50 @@ check_http_access_logs()
 
     su_required
 
+    IP_BAN_NOW=0
+
+    BANNED_IP_MAIL=$(mktemp $TMP_PREFIX.XXXXXXXX)
+    echo "Banned the following ip addresses on $(date)" > "$BANNED_IP_MAIL"
+    echo >> "$BANNED_IP_MAIL"
+
     whitelist=$(ignore_list "1")
 
-    for f in `ls $ACCESS_LOG_DIR$ACCESS_LOG_FILTER`
+    for logfile in $(ls $ACCESS_LOG_DIR/$ACCESS_LOG_FILTER)
     do
-        ips=$(tail -500 $f | grep -v ' 200 ' | awk '{print $1}' | grepcidr -v -e "$SERVER_IP_LIST $whitelist ::1" | sort | uniq -c | sort -nr | awk "{ if (\$1 >= $NO_OF_CONNECTIONS) print; }")
-        for cons ip in $ips
-        do
-            current_time=$(date +"%s")
-            echo "$((current_time+BAN_PERIOD)) $ip $cons" >> "${BANS_IP_LIST}"
-            timeout -k 60 -s 9 60 tcpkill -9 host "$ip" > /dev/null 2>&1 &
-            ban_ip $ip
-            log_msg "banned $ip with $cons requests from $f for ban period $BAN_PERIOD"
-        done
+        BAD_IP_LIST=$(mktemp $TMP_PREFIX.XXXXXXXX)
+        tail -500 $logfile | grep -v ' 200 ' | awk '{print $1}' | grepcidr -v -e "$SERVER_IP_LIST $whitelist ::1" | sort | uniq -c | sort -nr | awk "{ if (\$1 >= $NO_OF_CONNECTIONS) print; }" > $BAD_IP_LIST
+        while read line; do
+            CURR_LINE_CONN=$(echo $line | cut -d" " -f1)
+            CURR_LINE_IP=$(echo $line | cut -d" " -f2)
+            grep -q $CURR_LINE_IP $BANS_IP_LIST
+            if [ $? -ne 0 ];then
+                IP_BAN_NOW=1
+                current_time=$(date +"%s")
+                echo "$((current_time+BAN_PERIOD)) ${CURR_LINE_IP} $CURR_LINE_CONN" >> "${BANS_IP_LIST}"
+                echo "${CURR_LINE_IP}${CURR_PORT} with $CURR_LINE_CONN requests" >> "$BANNED_IP_MAIL"
+                timeout -k 60 -s 9 60 tcpkill -9 host "${CURR_LINE_IP}" >/dev/null 2>&1 &
+                ban_ip ${CURR_LINE_IP}
+                log_msg "banned ${CURR_LINE_IP} with $CURR_LINE_CONN requests from $logfile for ban period $BAN_PERIOD"
+            fi
+        done < $BAD_IP_LIST
     done
+
+    if [ "$IP_BAN_NOW" -eq 1 ]; then
+        if [ -n "$EMAIL_TO" ]; then
+            dt=$(date)
+            hn=$(hostname)
+            cat "$BANNED_IP_MAIL" | mail -s "[$hn] IP addresses banned on $dt" $EMAIL_TO
+        fi
+
+        if [ "$KILL" -eq 1 ]; then
+            echo "==========================================="
+            echo "Banned IP addresses:"
+            echo "==========================================="
+            cat "$BANNED_IP_LIST"
+        fi
+    fi
+
+    rm -f "$TMP_PREFIX".*
 }
 
 # Drops the transfer rate for a given ip.
@@ -1207,6 +1235,7 @@ view_ports()
 }
 
 # Set Default settings
+TMP_PREFIX='/tmp/ddos'
 PROGDIR="/usr/local/ddos"
 SBINDIR="/usr/local/sbin"
 PROG="$PROGDIR/ddos.sh"
