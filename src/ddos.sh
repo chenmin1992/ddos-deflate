@@ -152,7 +152,7 @@ ban_ip()
             next_number=$((rule_number + 1))
             $IPF -q add "$next_number" deny all from "$1" to any
         elif [ "$FIREWALL" = "iptables" ]; then
-            $IPT -nL | grep "$1" || $IPT -I INPUT -s "$1" -j DROP
+            $IPT -nL | grep -q "$1" || $IPT -I INPUT -s "$1" -j DROP
         fi
     else
         if [ "$FIREWALL" = "ipfw" ]; then
@@ -160,7 +160,7 @@ ban_ip()
             next_number=$((rule_number + 1))
             $IPF -q add "$next_number" deny all from "$1" to any
         else
-            $IPT6 -nL | grep "$1" || $IPT6 -I INPUT -s "$1" -j DROP
+            $IPT6 -nL | grep -q "$1" || $IPT6 -I INPUT -s "$1" -j DROP
         fi
     fi
 }
