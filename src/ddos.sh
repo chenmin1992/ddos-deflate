@@ -776,13 +776,6 @@ check_http_access_logs()
             hn=$(hostname)
             cat "$BANNED_IP_MAIL" | mail -s "[$hn] IP addresses banned on $dt" $EMAIL_TO
         fi
-
-        if [ "$KILL" -eq 1 ]; then
-            echo "==========================================="
-            echo "Banned IP addresses:"
-            echo "==========================================="
-            cat "$BANNED_IP_LIST"
-        fi
     fi
 
     rm -f "$TMP_PREFIX".*
@@ -1094,7 +1087,7 @@ daemon_loop()
     while true; do
         check_connections
         check_connections_bw
-        check_http_access_logs
+        # check_http_access_logs
 
         # unban or undrop expired ip's every 1 minute
         current_loop_time=$(date +"%s")
