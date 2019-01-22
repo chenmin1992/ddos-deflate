@@ -871,6 +871,20 @@ undrop_rate_list()
     done < "$BANS_BW_IP_LIST"
 }
 
+update_cloudflare_ip()
+{
+    sed '/cloudflare start/,/cloudflare end/d' "${CONF_PATH}${IGNORE_IP_LIST}" > /tmp/"${IGNORE_IP_LIST}"
+    curl -s 'https://www.cloudflare.com/ips-v4' > /tmp/cloudflare-ipv4
+    echo '# cloudflare start' >> /tmp/"${IGNORE_IP_LIST}"
+    while read ip
+    do
+        echo $ip >> /tmp/"${IGNORE_IP_LIST}"
+    done < /tmp/cloudflare-ipv4
+    echo '# cloudflare end' >> /tmp/"${IGNORE_IP_LIST}"
+    mv /tmp/"${IGNORE_IP_LIST}" "${CONF_PATH}${IGNORE_IP_LIST}"
+    rm -f /tmp/cloudflare-ipv4 /tmp/"${IGNORE_IP_LIST}"
+}
+
 ip_to_hex()
 {
     printf '%02x' "$(echo "$1" | sed "s/\\./ /g")"
@@ -1132,6 +1146,8 @@ daemon_loop()
     trap 'on_daemon_exit' QUIT
     trap 'on_daemon_exit' TERM
     trap 'on_daemon_exit' EXIT
+
+    update_cloudflare_ip
 
     echo "Detecting firewall..."
     detect_firewall
