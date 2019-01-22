@@ -410,7 +410,8 @@ ban_only_incoming()
 
 # Count incoming connections on specific ports and stores those
 # that exceed max allowed on a given file.
-# param1 File used to store the list of ip addresses as: conn_count ip port ban_time
+# param1 File used to store the list of ip addresses as:
+#        <conn_count> <ip> <port> <ban_time>
 ban_by_port()
 {
     whitelist=$(ignore_list "1")
@@ -662,13 +663,14 @@ check_connections_bw()
                     ratelimit*=1000;
                 } else if(index(ratelimit, "kbit") > 0) {
                     gsub(/kbit$/, "", ratelimit);
+                    ratelimit+=0; # force numeric cast
                 }
             }
             {
                 # Handle incoming then outgoing
                 if(index($0, "=>") > 0) {
                     # store outgoing bandwidth
-                    if(onlyincoming) {
+                    if(!onlyincoming) {
                         bandwidth[0]=$4;
                     }
 
@@ -700,7 +702,10 @@ check_connections_bw()
             }
         ' | \
         # Only leave non whitelisted, we add ::1 to ensure -v works for ipv6
-        grepcidr -v -e "$whitelist ::1" 2>/dev/null > "$BAD_IP_LIST"
+        grepcidr -v -e "$whitelist ::1" 2>/dev/null | \
+        # Only leave ip's that aren't already limited
+        grepcidr -v -e "$(cut -d" " -f2 "${BANS_BW_IP_LIST}") 127.0.0.1 ::1" \
+        > "$BAD_IP_LIST"
 
     while read line; do
         if [ "$line" = "" ]; then
@@ -712,13 +717,19 @@ check_connections_bw()
         ip=$(echo "$line" | cut -d" " -f1)
         bandwidth=$(echo "$line" | cut -d" " -f2)
 
-        drop_rate_ip "$ip"
+        prio_tc=$((prio_tc+1))
+
+        drop_rate_ip "$ip" "$prio_tc"
 
         echo "$ip using $bandwidth/s of bandwidth" >> "$BANNED_IP_MAIL"
 
         current_time=$(date +"%s")
-        echo "$((current_time+BANDWIDTH_DROP_PERIOD)) $ip $bandwidth" >> \
+        echo "$((current_time+BANDWIDTH_DROP_PERIOD)) $ip $bandwidth $prio_tc" >> \
             "${BANS_BW_IP_LIST}"
+
+        if [ "$prio_tc" -gt 10000 ]; then
+            prio_tc=0
+        fi
 
         log_msg "drop transfer rate for $ip wich used ${bandwidth}/s for ban period $BANDWIDTH_DROP_PERIOD"
     done < "$BAD_IP_LIST"
@@ -783,26 +794,42 @@ check_http_access_logs()
 
 # Drops the transfer rate for a given ip.
 # param1 The ip address ratelimit.
+# param2 The tc priority
 drop_rate_ip()
 {
+    ifindex=0
     for interface in $BANDWIDTH_INTERFACES; do
-        $TC filter add dev "$interface" protocol ip parent 1:0 prio 1 u32 \
-            match ip dst "$1"/32 flowid 1:1
+        # egress control
+        $TC filter add dev "$interface" protocol ip parent 1:0 \
+            prio "$2" u32 match ip dst "$1"/32 flowid 1:1
+        $TC filter add dev "$interface" protocol ip parent 1:0 \
+            prio "$2" u32 match ip src "$1"/32 flowid 1:2
+
+        # ingress control
+        $TC filter add dev "ifb${ifindex}" protocol ip parent 1:0 \
+            prio "$2" u32 match ip dst "$1"/32 flowid 1:1
+        $TC filter add dev "ifb${ifindex}" protocol ip parent 1:0 \
+            prio "$2" u32 match ip src "$1"/32 flowid 1:2
+
+        ifindex=$((ifindex+1))
     done
 }
 
 # Removes rate limit on ip.
 # param1 The ip address
 # param2 Optional amount of bandwidth the ip used.
+# param3 The assigned tc rule # for the ip.
 undrop_rate_ip()
 {
-    if [ "$1" = "" ]; then
+    if [ "$1" = "" ] || [ "$3" = "" ]; then
         return 1
     fi
 
+    ifindex=0
     for interface in $BANDWIDTH_INTERFACES; do
-        $TC filter del dev "$interface" protocol ip parent 1:0 prio 1 u32 \
-            match ip dst "$1"/32 flowid 1:1
+        tc filter del dev "$interface" prio "$3" 2>/dev/null
+        tc filter del dev "ifb${ifindex}" prio "$3" 2>/dev/null
+        ifindex=$((ifindex+1))
     done
 
     if [ "$2" != "" ]; then
@@ -836,11 +863,17 @@ undrop_rate_list()
         ban_time=$(echo "$line" | cut -d" " -f1)
         ip=$(echo "$line" | cut -d" " -f2)
         bandwidth=$(echo "$line" | cut -d" " -f3)
+        tcrule=$(echo "$line" | cut -d" " -f4)
 
         if [ "$current_time" -gt "$ban_time" ]; then
-            undrop_rate_ip "$ip" "$bandwidth"
+            undrop_rate_ip "$ip" "$bandwidth" "$tcrule"
         fi
     done < "$BANS_BW_IP_LIST"
+}
+
+ip_to_hex()
+{
+    printf '%02x' "$(echo "$1" | sed "s/\\./ /g")"
 }
 
 # Active connections to server.
@@ -968,6 +1001,32 @@ view_bans()
     fi
 }
 
+view_drops()
+{
+    echo "List of current traffic controls."
+    echo "==========================================================="
+
+    if [ -e "$BANS_BW_IP_LIST" ]; then
+        printf "% -5s % -30s % -7s\\n" "Exp." "IP" "Prio."
+        echo '-----------------------------------------------------------'
+        while read line; do
+            time=$(echo "$line" | cut -d" " -f1)
+            ip=$(echo "$line" | cut -d" " -f2)
+            bw=$(echo "$line" | cut -d" " -f3)
+            prio=$(echo "$line" | cut -d" " -f4)
+
+            current_time=$(date +"%s")
+            hours=$(echo $(((time-current_time)/60/60)))
+            minutes=$(echo $(((time-current_time)/60%60)))
+
+            echo "$(printf "%02d" "$hours"):$(printf "%02d" "$minutes")" \
+                "$(printf "% -30s" $ip)" \
+                "$(printf "% -7s" $prio)" \
+                "$bw"
+        done < "$BANS_BW_IP_LIST"
+    fi
+}
+
 # Executed as a cleanup function when the daemon is stopped
 on_daemon_exit()
 {
@@ -1074,16 +1133,26 @@ daemon_loop()
     trap 'on_daemon_exit' TERM
     trap 'on_daemon_exit' EXIT
 
+    echo "Detecting firewall..."
     detect_firewall
 
     restore_firewall
 
     start_bandwidth_control
 
-    # run unban and undrop lists after 2 minutes of initialization
-    ban_check_timer=$(date +"%s")
-    ban_check_timer=$((ban_check_timer+120))
+    if $ENABLE_PORTS; then
+        echo "Ban by port rules selected. Port rules: [$PORT_CONNECTIONS]"
+    elif $ONLY_INCOMING; then
+        echo "Ban only incoming connections that exceed $NO_OF_CONNECTIONS"
+    else
+        echo "Ban in/out connections that combined exceed $NO_OF_CONNECTIONS"
+    fi
 
+    # run unban and undrop lists after 10 seconds of initialization
+    ban_check_timer=$(date +"%s")
+    ban_check_timer=$((ban_check_timer+10))
+
+    echo "Monitoring connections!"
     while true; do
         check_connections
         check_connections_bw
@@ -1170,7 +1239,7 @@ detect_interfaces()
     )
 
     for interface in $interfaces; do
-        if ping -I "$interface" -c1 8.8.8.8; then
+        if ping -I "$interface" -c1 8.8.8.8>/dev/null; then
             BANDWIDTH_INTERFACES="$BANDWIDTH_INTERFACES $interface"
         fi
     done
@@ -1179,14 +1248,54 @@ detect_interfaces()
 start_bandwidth_control()
 {
     if $BANDWIDTH_CONTROL; then
+        echo "Initializing bandwidth control..."
+
+        echo "Detecting network interfaces..."
         detect_interfaces
 
+        # Load right amount of needed virtual interfaces
+        if_count="$(echo "$BANDWIDTH_INTERFACES" | wc -w)"
+        rmmod ifb 2>/dev/null
+        modprobe ifb numifbs="$if_count"
+
+        # Activate all ifb network interfaces.
+        for index in $(seq 0 $((if_count-1)) | xargs); do
+            ifconfig "ifb${index}" up
+        done
+
+        #percent_25="$(echo $((.25*BANDWIDTH_DROP_RATE)) | sed "s/\\.//g")"
+        #percent_80="$(echo $((.80*BANDWIDTH_DROP_RATE)) | sed "s/\\.//g")"
+
+        ifindex=0
         for interface in $BANDWIDTH_INTERFACES; do
-            $TC qdisc add dev "$interface" root handle 1: htb default 30
-            $TC class add dev "$interface" parent 1: classid 1:1 htb \
-                rate "$BANDWIDTH_DROP_RATE"
-            $TC class add dev "$interface" parent 1: classid 1:2 htb \
-                rate "$BANDWIDTH_DROP_RATE"
+            # Redirect ingress to ifb# in order for traffic shaping to
+            # properly work.
+            $TC qdisc add dev "$interface" handle ffff: ingress
+            $TC filter add dev "$interface" parent ffff: \
+                protocol ip u32 match u32 0 0 action mirred \
+                egress redirect dev "ifb${ifindex}"
+
+            # ingress rules
+            $TC qdisc add dev "ifb${ifindex}" root \
+                handle 1: htb default 30
+            $TC class add dev "ifb${ifindex}" parent 1: \
+                classid 1:1 htb rate "$BANDWIDTH_DROP_RATE"
+            $TC class add dev "ifb${ifindex}" parent 1: \
+                classid 1:2 htb rate "$BANDWIDTH_DROP_RATE"
+            $TC qdisc add dev "ifb${ifindex}" parent 1:1 fq_codel ecn
+            $TC qdisc add dev "ifb${ifindex}" parent 1:2 fq_codel ecn
+
+            # egress rules
+            $TC qdisc add dev "$interface" root \
+                handle 1: htb default 30
+            $TC class add dev "$interface" parent 1: \
+                classid 1:1 htb rate "$BANDWIDTH_DROP_RATE"
+            $TC class add dev "$interface" parent 1: \
+                classid 1:2 htb rate "$BANDWIDTH_DROP_RATE"
+            $TC qdisc add dev "$interface" parent 1:1 fq_codel noecn
+            $TC qdisc add dev "$interface" parent 1:2 fq_codel noecn
+
+            ifindex=$((ifindex+1))
         done
 
         # we force DAEMON_FREQ to zero because iftop takes 3 seconds
@@ -1199,11 +1308,21 @@ stop_bandwidth_control()
 {
     if $BANDWIDTH_CONTROL; then
         detect_interfaces
-
+        ifcount=0
         for interface in $BANDWIDTH_INTERFACES; do
-            $TC qdisc del dev "$interface" root
+            echo "Disabling bandwidth control on: $interface..."
+
+            $TC qdisc del dev "$interface" root 2>/dev/null
+            $TC qdisc del dev "$interface" ingress 2>/dev/null
+
+            $TC qdisc del dev "ifb${ifcount}" root 2>/dev/null
+            $TC qdisc del dev "ifb${ifcount}" ingress 2>/dev/null
+
+            ifcount=$((ifcount+1))
         done
     fi
+
+    rmmod ifb 2>/dev/null
 }
 
 view_ports()
@@ -1253,9 +1372,9 @@ CONN_STATES="connected"
 CONN_STATES_NS="ESTABLISHED|SYN_SENT|SYN_RECV|FIN_WAIT1|FIN_WAIT2|TIME_WAIT|CLOSE_WAIT|LAST_ACK|CLOSING"
 ONLY_INCOMING=false
 BANDWIDTH_CONTROL=false
-BANDWIDTH_CONTROL_LIMIT="1512kbit"
-BANDWIDTH_DROP_RATE="256kbit"
-BANDWIDTH_DROP_PERIOD=86400
+BANDWIDTH_CONTROL_LIMIT="1896kbit"
+BANDWIDTH_DROP_RATE="512kbit"
+BANDWIDTH_DROP_PERIOD=600
 BANDWIDTH_ONLY_INCOMING=true
 ACCESS_LOG_DIR='/home/wwwlogs/'
 ACCESS_LOG_FILTER='*.log'
@@ -1288,6 +1407,10 @@ while [ "$1" ]; do
             ;;
         '--bans-list' | '-b' )
             view_bans
+            exit
+            ;;
+        '--traffic-list' | '-f' )
+            view_drops
             exit
             ;;
         '--unban' | '-u' )
