@@ -874,7 +874,6 @@ undrop_rate_list()
 update_cloudflare_ip()
 {
     sed '/cloudflare start/,/cloudflare end/d' "${CONF_PATH}${IGNORE_IP_LIST}" > /tmp/"${IGNORE_IP_LIST}"
-    echo >> /tmp/"${IGNORE_IP_LIST}"
     echo '# cloudflare start' >> /tmp/"${IGNORE_IP_LIST}"
     curl -s 'https://www.cloudflare.com/ips-v4' >> /tmp/"${IGNORE_IP_LIST}"
     echo '# cloudflare end' >> /tmp/"${IGNORE_IP_LIST}"
